@@ -13,15 +13,16 @@ public class Node {
   private final int id;
   private int distance;
   private List<Integer> edges = new ArrayList<Integer>();
-  private List<Integer> weights = new ArrayList<Integer>();
+  private List<Integer> path_taken_edges = new ArrayList<Integer>();
   private Color color = Color.WHITE;
 
   public Node(String str) {
-    System.out.println(str);
+    System.out.println("value: " + str);
     String[] map = str.split("\t");
+    System.out.println("map: " + map[0]);
     String key = map[0];
-    String value = map[1];
-
+    String value =  map[1];
+    
     String[] tokens = value.split("\\|");
 
     this.id = Integer.parseInt(key);
@@ -29,12 +30,6 @@ public class Node {
     for (String s : tokens[0].split(",")) {
       if (s.length() > 0) {
         edges.add(Integer.parseInt(s));
-      }
-    }
-
-    for (String weight : tokens[1].split(",")) {
-      if(weight.length() > 0) {
-        weights.add(Integer.parseInt(weight));
       }
     }
     
@@ -49,6 +44,13 @@ public class Node {
     }
     this.color = Color.valueOf(tokens[3]);
     
+    if(tokens.length >= 5) {
+      for(String s : tokens[4].split(",")) {
+        if(s.length()> 0) {
+          path_taken_edges.add(Integer.parseInt(s));
+        }
+      }
+    }
 
   }
 
@@ -62,10 +64,6 @@ public class Node {
 
   public int getDistance() {
     return this.distance;
-  }
-
-  public List<Integer> getWeights() {
-    return this.weights;
   }
 
   public void setDistance(int distance) {
@@ -88,6 +86,18 @@ public class Node {
     this.edges = edges;
   }
 
+  public List<Integer> getPathTakenEdges() {
+		return this.path_taken_edges;
+	}
+
+	public void setPathTakenEdges(List<Integer> path_taken_edges) {
+		this.path_taken_edges = path_taken_edges;
+	}
+
+	public void addPathTakenEdge(Integer path_taken_edges) {
+		this.path_taken_edges.add(path_taken_edges);
+	}
+
   public Text getLine() {
     StringBuffer s = new StringBuffer();
     
@@ -96,10 +106,7 @@ public class Node {
     }
     s.append("|");
 
-    for (int weight: weights) {
-      s.append(weight).append(",");
-    }
-    s.append("|");
+    s.append("1").append("|");
 
     if (this.distance < Integer.MAX_VALUE) {
       s.append(this.distance).append("|");
@@ -108,6 +115,11 @@ public class Node {
     }
 
     s.append(color.toString());
+
+    for (int v : path_taken_edges) {
+			s.append(v).append(",");
+		}
+		s.append("|");
 
     return new Text(s.toString());
   }

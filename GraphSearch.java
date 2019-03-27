@@ -1,6 +1,7 @@
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ArrayList;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -15,50 +16,43 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
 /**
- * This is an example Hadoop Map/Reduce application. 
+ * This is an example Hadoop Map/Reduce application.
  * 
- * It inputs a map in adjacency list format, and performs a breadth-first search.
- * The input format is
- * ID   EDGES|DISTANCE|COLOR
- * where
- * ID = the unique identifier for a node (assumed to be an int here)
- * EDGES = the list of edges emanating from the node (e.g. 3,8,9,12)
- * DISTANCE = the to be determined distance of the node from the source
- * COLOR = a simple status tracking field to keep track of when we're finished with a node
- * It assumes that the source node (the node from which to start the search) has
- * been marked with distance 0 and color GRAY in the original input.  All other
- * nodes will have input distance Integer.MAX_VALUE and color WHITE.
+ * It inputs a map in adjacency list format, and performs a breadth-first
+ * search. The input format is ID EDGES|DISTANCE|COLOR where ID = the unique
+ * identifier for a node (assumed to be an int here) EDGES = the list of edges
+ * emanating from the node (e.g. 3,8,9,12) DISTANCE = the to be determined
+ * distance of the node from the source COLOR = a simple status tracking field
+ * to keep track of when we're finished with a node It assumes that the source
+ * node (the node from which to start the search) has been marked with distance
+ * 0 and color GRAY in the original input. All other nodes will have input
+ * distance Integer.MAX_VALUE and color WHITE.
  */
 public class GraphSearch extends Configured implements Tool {
 
   public static final Log LOG = LogFactory.getLog("org.apache.hadoop.examples.GraphSearch");
 
   /**
-   * Nodes that are Color.WHITE or Color.BLACK are emitted, as is. For every
-   * edge of a Color.GRAY node, we emit a new Node with distance incremented by
-   * one. The Color.GRAY node is then colored black and is also emitted.
+   * Nodes that are Color.WHITE or Color.BLACK are emitted, as is. For every edge
+   * of a Color.GRAY node, we emit a new Node with distance incremented by one.
+   * The Color.GRAY node is then colored black and is also emitted.
    */
-  public static class MapClass extends MapReduceBase implements
-      Mapper<LongWritable, Text, IntWritable, Text> {
+  public static class MapClass extends MapReduceBase implements Mapper<LongWritable, Text, IntWritable, Text> {
 
-    public void map(LongWritable key, Text value, OutputCollector<IntWritable, Text> output,
-        Reporter reporter) throws IOException {
+    public void map(LongWritable key, Text value, OutputCollector<IntWritable, Text> output, Reporter reporter)
+        throws IOException {
 
-      LOG.info("Map executing for key [" + key.toString() + "] and value [" + value.toString()
-          + "]");
+      LOG.info("Map executing for key [" + key.toString() + "] and value [" + value.toString() + "]");
 
       Node node = new Node(value.toString());
 
       // For each GRAY node, emit each of the edges as a new node (also GRAY)
       if (node.getColor() == Node.Color.GRAY) {
-        int index = 0;
-        List<Integer> weights = node.getWeights();
         for (int v : node.getEdges()) {
           Node vnode = new Node(v);
-          vnode.setDistance(node.getDistance() + weights.get(index));
+          vnode.setDistance(node.getDistance() + 1);
           vnode.setColor(Node.Color.GRAY);
           output.collect(new IntWritable(vnode.getId()), vnode.getLine());
-          index++;
         }
         // We're done with this node now, color it BLACK
         node.setColor(Node.Color.BLACK);
@@ -76,23 +70,22 @@ public class GraphSearch extends Configured implements Tool {
   /**
    * A reducer class that just emits the sum of the input values.
    */
-  public static class Reduce extends MapReduceBase implements
-      Reducer<IntWritable, Text, IntWritable, Text> {
+  public static class Reduce extends MapReduceBase implements Reducer<IntWritable, Text, IntWritable, Text> {
 
     /**
-     * Make a new node which combines all information for this single node id.
-     * The new node should have 
-     * - The full list of edges 
-     * - The minimum distance 
-     * - The darkest Color
+     * Make a new node which combines all information for this single node id. The
+     * new node should have - The full list of edges - The minimum distance - The
+     * darkest Color
      */
-    public void reduce(IntWritable key, Iterator<Text> values,
-        OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException {
+    public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<IntWritable, Text> output,
+        Reporter reporter) throws IOException {
       LOG.info("Reduce executing for input key [" + key.toString() + "]");
 
       List<Integer> edges = null;
+      List<Integer> PathTakenEdges = new ArrayList<Integer>();
       int distance = Integer.MAX_VALUE;
       Node.Color color = Node.Color.WHITE;
+      Node.Color maxDistanceWeightedNodeColor = Node.Color.WHITE;
 
       while (values.hasNext()) {
         Text value = values.next();
@@ -110,6 +103,40 @@ public class GraphSearch extends Configured implements Tool {
           distance = u.getDistance();
         }
 
+        // Save the minimum distance
+        if (u.getDistance() < distance) {
+          distance = u.getDistance();
+
+          // For a maximum distance node, Gray or Black, save the path to that maximum
+          // distance node...
+          if (u.getColor().ordinal() < Node.Color.GRAY.ordinal()) {
+            // Clear the PathTakenEdges...
+            PathTakenEdges.clear();
+            // do a deep copy of path taken edges information...
+            for (int pathTakenEdge : u.getPathTakenEdges()) {
+              PathTakenEdges.add(pathTakenEdge);
+            }
+          }
+          // save the color of the maximum distance node
+          maxDistanceWeightedNodeColor = u.getColor();
+        }
+
+        /*
+         * If the existing color of the maximum distance node is white, and we happen
+         * across a Gray or Black node, then save the Path Taken information because the
+         * GRAY nodes have the Path taken Edges information...
+         */
+
+        else if ((maxDistanceWeightedNodeColor == Node.Color.WHITE)
+            && (u.getColor().ordinal() < Node.Color.GRAY.ordinal())) {
+          // Clear the PathTakenEdges...
+          PathTakenEdges.clear();
+          // do a deep copy of path taken edges information...
+          for (int pathTakenEdge : u.getPathTakenEdges()) {
+            PathTakenEdges.add(pathTakenEdge);
+          }
+        }
+
         // Save the darkest color
         if (u.getColor().ordinal() > color.ordinal()) {
           color = u.getColor();
@@ -121,6 +148,9 @@ public class GraphSearch extends Configured implements Tool {
       n.setDistance(distance);
       n.setEdges(edges);
       n.setColor(color);
+      if (!(PathTakenEdges == null)) {
+        n.setPathTakenEdges(PathTakenEdges);
+      }
       output.collect(key, new Text(n.getLine()));
       LOG.info("Reduce outputting final key [" + key + "] and value [" + n.getLine() + "]");
     }
@@ -162,8 +192,8 @@ public class GraphSearch extends Configured implements Tool {
    * The main driver for word count map/reduce program. Invoke this method to
    * submit the map/reduce job.
    * 
-   * @throws IOException
-   *           When there is communication problems with the job tracker.
+   * @throws IOException When there is communication problems with the job
+   *                     tracker.
    */
   public int run(String[] args) throws Exception {
 
@@ -189,12 +219,12 @@ public class GraphSearch extends Configured implements Tool {
 
     return 0;
   }
-  
+
   private boolean keepGoing(int iterationCount) {
-    if(iterationCount >= 4) {
+    if (iterationCount >= 4) {
       return false;
     }
-    
+
     return true;
   }
 
