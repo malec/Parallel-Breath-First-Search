@@ -13,7 +13,6 @@ public class Node {
   private final int id;
   private int distance;
   private List<Integer> edges = new ArrayList<Integer>();
-  private List<Integer> weights = new ArrayList<Integer>();
   private Color color = Color.WHITE;
 
   public Node(String str) {
@@ -31,12 +30,6 @@ public class Node {
         edges.add(Integer.parseInt(s));
       }
     }
-
-    for (String weight : tokens[1].split(",")) {
-      if(weight.length() > 0) {
-        weights.add(Integer.parseInt(weight));
-      }
-    }
     
     for(int i = 0; i < tokens.length; i++) {
       System.out.println("Token " + i + ": " + tokens[i]);
@@ -48,8 +41,6 @@ public class Node {
       this.distance = Integer.parseInt(tokens[2]);
     }
     this.color = Color.valueOf(tokens[3]);
-    
-
   }
 
   public Node(int id) {
@@ -62,10 +53,6 @@ public class Node {
 
   public int getDistance() {
     return this.distance;
-  }
-
-  public List<Integer> getWeights() {
-    return this.weights;
   }
 
   public void setDistance(int distance) {
@@ -96,8 +83,8 @@ public class Node {
     }
     s.append("|");
 
-    for (int weight: weights) {
-      s.append(weight).append(",");
+    for (int weight: edges) {
+      s.append("1").append(",");
     }
     s.append("|");
 
